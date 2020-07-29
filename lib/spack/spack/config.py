@@ -45,6 +45,7 @@ from ruamel.yaml.error import MarkedYAMLError
 import llnl.util.lang
 import llnl.util.tty as tty
 from llnl.util.filesystem import mkdirp
+from spack.util.path import substitute_path_variables
 
 import spack.paths
 import spack.architecture
@@ -71,6 +72,7 @@ section_schemas = {
     'modules': spack.schema.modules.schema,
     'config': spack.schema.config.schema,
     'upstreams': spack.schema.upstreams.schema,
+    'include': spack.schema.include.schema,
 }
 
 # Same as above, but including keys for environments
@@ -139,6 +141,7 @@ class ConfigScope(object):
         self.name = name           # scope name.
         self.path = path           # path to directory containing configs.
         self.sections = syaml.syaml_dict()  # sections read from config files.
+        self.remove_chain = []
 
     def get_section_filename(self, section):
         _validate_section_name(section)
@@ -363,7 +366,41 @@ class Configuration(object):
                 # be the scope of highest precedence
                 cmd_line_scope = self.pop_scope()
 
-        self.scopes[scope.name] = scope
+        def _push_scope_rec(scope):
+            """Recursively walk 'include' sections and push scopes"""
+            # assert scope.name not in self.scopes, "Already registered scope %s" % scope.name
+            includes = scope.get_section('include') or dict()
+            for i, config_path in enumerate(reversed(includes.get('include', []))):
+                # allow paths to contain spack config/environment variables, etc.
+                config_path = substitute_path_variables(config_path)
+
+                # treat relative paths as relative to the current scope
+                if not os.path.isabs(config_path):
+                    current_dir = scope.path
+                    if not os.path.isdir(current_dir): # for SingleFileScope scopes
+                        current_dir = os.path.dirname(current_dir)
+                    config_path = os.path.join(current_dir, config_path)
+                    config_path = os.path.normpath(os.path.realpath(config_path))
+
+                if os.path.isdir(config_path):
+                    # directories are treated as regular ConfigScopes
+                    config_name = 'include:%s:%s' % (
+                        scope.name, os.path.basename(config_path)) # TODO spack 0.16 see 8116153f2a
+                    included_scope = spack.config.ConfigScope(config_name, config_path)
+                else:
+                    # files are assumed to be SingleFileScopes
+                    base, ext = os.path.splitext(os.path.basename(config_path)) # TODO spack 0.16 see 8116153f2a
+                    config_name = 'include:%s:%s' % (scope.name, base)
+                    included_scope = spack.config.SingleFileScope(
+                        config_name, config_path, spack.schema.merged.schema)
+
+                _push_scope_rec(included_scope)
+                scope.remove_chain.append(included_scope.name)
+            # Current scope takes precedence over its include, so add after includes
+            self.scopes[scope.name] = scope
+
+        _push_scope_rec(scope)
+
         if cmd_line_scope:
             self.scopes['command_line'] = cmd_line_scope
 
@@ -373,7 +410,11 @@ class Configuration(object):
         return scope
 
     def remove_scope(self, scope_name):
-        return self.scopes.pop(scope_name)
+        scope = self.scopes.pop(scope_name)
+        if scope:
+            for rm in scope.remove_chain:
+                self.remove_scope(rm)
+        return scope
 
     @property
     def file_scopes(self):
