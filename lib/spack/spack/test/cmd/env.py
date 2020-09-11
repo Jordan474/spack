@@ -2083,3 +2083,39 @@ def test_env_write_only_non_default():
         yaml = f.read()
 
     assert yaml == ev.default_manifest_yaml
+
+
+@pytest.mark.regression('18441')
+def test_lockfile_not_deleted_on_write_error(tmpdir, monkeypatch):
+    raw_yaml = """
+spack:
+  specs:
+  - dyninst
+  packages:
+    libelf:
+      paths:
+        libelf@0.8.13: /usr
+"""
+    spack_yaml = tmpdir.join('spack.yaml')
+    spack_yaml.write(raw_yaml)
+    spack_lock = tmpdir.join('spack.lock')
+
+    # Concretize a first time and create a lockfile
+    with ev.Environment(str(tmpdir)):
+        concretize()
+    assert os.path.exists(str(spack_lock))
+
+    # If I run concretize again and there's an error during write,
+    # the spack.lock file shouldn't disappear from disk
+    def _write_helper_raise(self, x, y):
+        raise RuntimeError('some error')
+
+    monkeypatch.setattr(
+        ev.Environment, '_update_and_write_manifest', _write_helper_raise
+    )
+    with ev.Environment(str(tmpdir)) as e:
+        e.concretize(force=True)
+        with pytest.raises(RuntimeError):
+            e.clear()
+            e.write()
+    assert os.path.exists(str(spack_lock))

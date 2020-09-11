@@ -1499,13 +1499,26 @@ class Environment(object):
             # write the lock file last
             with fs.write_tmp_and_move(self.lock_path) as f:
                 sjson.dump(self._to_lockfile_dict(), stream=f)
+            self._update_and_write_manifest(raw_yaml_dict, yaml_dict)
         else:
-            if os.path.exists(self.lock_path):
-                os.unlink(self.lock_path)
+            with fs.safe_remove(self.lock_path):
+                self._update_and_write_manifest(raw_yaml_dict, yaml_dict)
 
+        # TODO: rethink where this needs to happen along with
+        # writing. For some of the commands (like install, which write
+        # concrete specs AND regen) this might as well be a separate
+        # call.  But, having it here makes the views consistent witht the
+        # concretized environment for most operations.  Which is the
+        # special case?
+        if regenerate_views:
+            self.regenerate_views()
+
+    def _update_and_write_manifest(self, raw_yaml_dict, yaml_dict):
+        """Update YAML manifest for this environment based on changes to
+        spec lists and views and write it.
+        """
         # invalidate _repo cache
         self._repo = None
-
         # put any changes in the definitions in the YAML
         for name, speclist in self.spec_lists.items():
             if name == user_speclist_name:
@@ -1532,14 +1545,12 @@ class Environment(object):
                                  for ayl in active_yaml_lists)]
             list_for_new_specs = active_yaml_lists[0].setdefault(name, [])
             list_for_new_specs[:] = list_for_new_specs + new_specs
-
         # put the new user specs in the YAML.
         # This can be done directly because there can't be multiple definitions
         # nor when clauses for `specs` list.
         yaml_spec_list = yaml_dict.setdefault(user_speclist_name,
                                               [])
         yaml_spec_list[:] = self.user_specs.yaml_list
-
         # Construct YAML representation of view
         default_name = default_view_name
         if self.views and len(self.views) == 1 and default_name in self.views:
@@ -1557,9 +1568,7 @@ class Environment(object):
                         for name, view in self.views.items())
         else:
             view = False
-
         yaml_dict['view'] = view
-
         # Remove yaml sections that are shadowing defaults
         # construct garbage path to ensure we don't find a manifest by accident
         with fs.temp_cwd() as env_dir:
@@ -1569,7 +1578,6 @@ class Environment(object):
                 if yaml_dict[key] == config_dict(bare_env.yaml).get(key, None):
                     if key not in raw_yaml_dict:
                         del yaml_dict[key]
-
         # if all that worked, write out the manifest file at the top level
         # (we used to check whether the yaml had changed and not write it out
         # if it hadn't. We can't do that anymore because it could be the only
@@ -1582,15 +1590,6 @@ class Environment(object):
             self.raw_yaml = copy.deepcopy(self.yaml)
             with fs.write_tmp_and_move(self.manifest_path) as f:
                 _write_yaml(self.yaml, f)
-
-        # TODO: rethink where this needs to happen along with
-        # writing. For some of the commands (like install, which write
-        # concrete specs AND regen) this might as well be a separate
-        # call.  But, having it here makes the views consistent witht the
-        # concretized environment for most operations.  Which is the
-        # special case?
-        if regenerate_views:
-            self.regenerate_views()
 
     def __enter__(self):
         self._previous_active = _active_environment
