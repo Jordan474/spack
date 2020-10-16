@@ -114,12 +114,98 @@ class TestConcretizePreferences(object):
         update_packages('mpileaks', 'compiler', [compiler])
         spec = concretize('mpileaks')
         assert spec.compiler == spack.spec.CompilerSpec(compiler)
+        assert spec['callpath'].compiler == spack.spec.CompilerSpec(compiler)
 
         # Try the last available compiler
         compiler = str(compiler_list[-1])
         update_packages('mpileaks', 'compiler', [compiler])
         spec = concretize('mpileaks os=redhat6 target=x86')
         assert spec.compiler == spack.spec.CompilerSpec(compiler)
+        assert spec['callpath'].compiler == spack.spec.CompilerSpec(compiler)
+
+    def test_preferred_compilers_over_dependent_pref(self):
+        """Test preferred compiler precedence over dependent-inherited compiler
+        preference
+
+        """
+        # Need to make sure the test uses an available compiler
+        compiler_list = spack.compilers.all_compiler_specs()
+        compilerA = str(compiler_list[0])
+        compilerB = str(compiler_list[1])
+        print('---- test')
+
+        # Try without dependence precedence
+        update_packages('mpileaks', 'compiler', [compilerA])
+        spec = concretize('mpileaks')
+        assert spec.compiler == spack.spec.CompilerSpec(compilerA)
+        assert spec['callpath'].compiler == spack.spec.CompilerSpec(compilerA)
+        assert spec['libelf'].compiler == spack.spec.CompilerSpec(compilerA)
+
+        print('---- test')
+        # Try with preference on dependent's compiler (corner-case: leaf dep)
+        conf = {'mpileaks': {'compiler': [compilerA]},
+                'libelf': {'compiler': [compilerB]}}
+        spack.config.set('packages', conf, scope='concretize')
+        spec = concretize('mpileaks')
+        assert spec.compiler == spack.spec.CompilerSpec(compilerA)
+        assert spec['callpath'].compiler == spack.spec.CompilerSpec(compilerA)
+        assert spec['libelf'].compiler == spack.spec.CompilerSpec(compilerB)
+        print('---- test')
+
+        # Try with preference on dependent's compiler
+        conf = {'mpileaks': {'compiler': [compilerA]},
+                'callpath': {'compiler': [compilerB]}}
+        spack.config.set('packages', conf, scope='concretize')
+        spec = concretize('mpileaks')
+        assert spec.compiler == spack.spec.CompilerSpec(compilerA)
+        assert spec['callpath'].compiler == spack.spec.CompilerSpec(compilerB)
+        assert spec['libelf'].compiler == spack.spec.CompilerSpec(compilerB)
+        print('---- test')
+
+        # # But with preference on both compilers it's OK
+        # conf = {'mpileaks': {'compiler': [compilerA]},
+        #         'callpath': {'compiler': [compilerB, compilerA]}}
+        # spack.config.set('packages', conf, scope='concretize')
+        # spec = concretize('mpileaks')
+        # assert spec.compiler == spack.spec.CompilerSpec(compilerA)
+        # assert spec['callpath'].compiler == spack.spec.CompilerSpec(compilerA)
+
+    def test_preferred_compilers_over_dependent_spec(self):
+        """Test preferred compiler precedence over dependent-inherited compiler spec
+
+        """
+        # Need to make sure the test uses an available compiler
+        compiler_list = spack.compilers.all_compiler_specs()
+        assert compiler_list and len(compiler_list) >= 2
+
+        compilerA = str(compiler_list[0])
+        compilerB = str(compiler_list[1])
+
+        # Setup root package compiler spec
+        root_spec = 'mpileaks %' + compilerA
+        print('---- test')
+
+        # Try without dependence precedence
+        spec = concretize(root_spec)
+        assert spec.compiler == spack.spec.CompilerSpec(compilerA)
+        assert spec['callpath'].compiler == spack.spec.CompilerSpec(compilerA)
+        assert spec['libelf'].compiler == spack.spec.CompilerSpec(compilerA)
+        print('---- test')
+
+        # Try with preference on dependent's compiler
+        update_packages('callpath', 'compiler', [compilerB])
+        spec = concretize(root_spec)
+        assert spec.compiler == spack.spec.CompilerSpec(compilerA)
+        assert spec['callpath'].compiler == spack.spec.CompilerSpec(compilerB)
+        assert spec['libelf'].compiler == spack.spec.CompilerSpec(compilerB)
+        print('---- test')
+
+        # # But with preference on both compilers it's OK
+        # update_packages('callpath', 'compiler', [compilerB, compilerA])
+        # spec = concretize(root_spec)
+        # assert spec.compiler == spack.spec.CompilerSpec(compilerA)
+        # assert spec['callpath'].compiler == spack.spec.CompilerSpec(compilerB)
+        # print('---- test')
 
     def test_preferred_target(self, mutable_mock_repo):
         """Test preferred compilers are applied correctly

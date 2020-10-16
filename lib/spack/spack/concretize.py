@@ -417,6 +417,9 @@ class Concretizer(object):
 
             return compilers
 
+
+        # print(f'for {spec}')
+
         if spec.compiler and spec.compiler.concrete:
             if (self.check_for_compiler_existence and not
                     _proper_compiler_style(spec.compiler, spec.architecture)):
@@ -424,11 +427,21 @@ class Concretizer(object):
                     spec.compiler, spec.architecture)
             return False
 
-        # Find another spec that has a compiler, or the root if none do
-        other_spec = spec if spec.compiler else find_spec(
-            spec, lambda x: x.compiler, spec.root)
-        other_compiler = other_spec.compiler
+        # Find the first spec in the dag, that...
+        def _usable_compiler(spec):
+            # ... already has some compiler constraint
+            if spec.compiler:
+                return True
+            # ... or, has some compiler preference
+            # TODO: should be has some *compatible* compiler preference
+            if spack.config.get('packages').get(spec.name, {}).get('compiler'):
+                return True
+            return False
+        other_spec = spec if _usable_compiler(spec) else find_spec(
+            spec, _usable_compiler, spec.root)
         assert other_spec
+        other_compiler = other_spec.compiler
+        # print(f'   other is {other_spec}')
 
         # Check if the compiler is already fully specified
         if other_compiler and other_compiler.concrete:
