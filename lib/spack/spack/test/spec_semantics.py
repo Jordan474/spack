@@ -987,3 +987,10 @@ class TestSpecSematics(object):
         s = Spec('mpileaks +unknown')
         with pytest.raises(UnknownVariantError, match=r'package has no such'):
             s.concretize()
+
+    @pytest.mark.regression('18527')
+    def test_satisfies_dependencies_ordered(self):
+        d = Spec('zmpi ^fake')
+        s = Spec('mpileaks')
+        s._add_dependency(d, ())
+        assert s.satisfies('mpileaks ^zmpi ^fake', strict=True)
