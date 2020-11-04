@@ -200,6 +200,14 @@ def test_rc_versions():
     assert_ver_lt('6.0',     '6.0.rc1')
 
 
+def test_semantic_version():
+    # https://semver.org/spec/v2.0.0.html
+    # Example:
+    txt = "1.0.0-alpha < 1.0.0-alpha.1 < 1.0.0-alpha.beta < 1.0.0-beta < 1.0.0-beta.2 < 1.0.0-beta.11 < 1.0.0-rc.1 < 1.0.0"
+    vs = txt.split(" < ")
+    for v1, v2 in zip(vs[:-1], vs[1:]):
+        assert_ver_lt(v1, v2)
+
 def test_alpha_beta():
     assert_ver_gt('10b2', '10a1')
     assert_ver_lt('10a2', '10b2')
