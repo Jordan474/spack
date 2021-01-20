@@ -1179,6 +1179,38 @@ env:
         assert Spec('callpath^mpich@3.0.3') in test.user_specs
 
 
+def test_stack_yaml_definitions_composition(tmpdir):
+    filename = str(tmpdir.join("spack.yaml"))
+    with open(filename, "w") as f:
+        f.write(
+            """\
+env:
+  definitions:
+    - packages: [mpileaks, callpath]
+    - compilers: [intel, clang]
+    - force_gcc: [dyninst, libelf]
+    - dependency_constraints:
+      - matrix:
+        - [$force_gcc]
+        - '%gcc'
+  specs:
+    - matrix:
+      - [$packages]
+      - [$%compilers]
+      - $^dependency_constraints
+"""
+        )
+    with tmpdir.as_cwd():
+        env("create", "test", "./spack.yaml")
+        test = ev.read("test")
+
+        sameforall = ' ^dyninst%gcc ^libelf%gcc'
+        assert Spec('mpileaks%intel' + sameforall) in test.user_specs
+        assert Spec('callpath%intel' + sameforall) in test.user_specs
+        assert Spec('callpath%clang' + sameforall) in test.user_specs
+        assert Spec('mpileaks%clang' + sameforall) in test.user_specs
+
+
 @pytest.mark.regression('12095')
 def test_stack_yaml_definitions_write_reference(tmpdir):
     filename = str(tmpdir.join('spack.yaml'))

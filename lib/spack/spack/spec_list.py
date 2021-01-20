@@ -142,17 +142,19 @@ class SpecList(object):
     def _expand_references(self, yaml):
         if isinstance(yaml, list):
             ret = []
-
             for item in yaml:
                 # if it's a reference, expand it
-                if isinstance(item, string_types) and item.startswith('$'):
-                    # replace the reference and apply the sigil if needed
-                    name, sigil = self._parse_reference(item)
-                    referent = [
-                        _sigilify(item, sigil)
-                        for item in self._reference[name].specs_as_yaml_list
-                    ]
-                    ret.extend(referent)
+                if isinstance(item, string_types):
+                    if item.startswith('$'):
+                        # replace the reference and apply the sigil if needed
+                        name, sigil = self._parse_reference(item)
+                        referent = [
+                            _sigilify(spec, sigil)
+                            for spec in self._reference[name].specs_as_yaml_list
+                        ]
+                        ret.extend(referent)
+                    else:
+                        ret.append(item)
                 else:
                     # else just recurse
                     ret.append(self._expand_references(item))
@@ -162,8 +164,10 @@ class SpecList(object):
             return dict((name, self._expand_references(val))
                         for (name, val) in yaml.items())
         else:
-            # Strings are just returned
-            return yaml
+            # unreachable
+            raise ValueError(
+                "_expand_references accepts only list or dicts (matrix)"
+            )
 
     def __len__(self):
         return len(self.specs)
@@ -174,17 +178,34 @@ class SpecList(object):
 
 def _expand_matrix_constraints(object, specify=True):
     # recurse so we can handle nexted matrices
+
+    def _expand_flatten(row):
+        """Expand recursively a list and return a flattened list."""
+        new_row = []
+        for cell in row:
+            if isinstance(cell, list):
+                new_row.extend(_expand_flatten(cell))
+            elif isinstance(cell, dict):
+                # Join sub-matrix specs so we wont re-order them later
+                new_row.extend([
+                    ' '.join(r)
+                    for r in _expand_matrix_constraints(cell, specify=False)
+                ])
+            else:
+                new_row.append(cell)
+        return new_row
+
     expanded_rows = []
     for row in object['matrix']:
-        new_row = []
-        for r in row:
-            if isinstance(r, dict):
-                new_row.extend(
-                    [[' '.join(c)]
-                     for c in _expand_matrix_constraints(r, specify=False)])
-            else:
-                new_row.append([r])
-        expanded_rows.append(new_row)
+        if isinstance(row, list):
+            # Expand and flatten matrix second dimension
+            expanded_rows.append(_expand_flatten(row))
+        elif isinstance(row, dict):
+            # Matrix in first dimension: expand and concatenate
+            expanded_rows.extend([[c] for c in _expand_flatten([row])])
+        else:
+            # String in first dimension: treat as 1-element row
+            expanded_rows.append([row])
 
     excludes = object.get('exclude', [])  # only compute once
     sigil = object.get('sigil', '')
@@ -192,8 +213,7 @@ def _expand_matrix_constraints(object, specify=True):
     results = []
     for combo in itertools.product(*expanded_rows):
         # Construct a combined spec to test against excludes
-        flat_combo = [constraint for list in combo for constraint in list]
-        ordered_combo = sorted(flat_combo, key=spec_ordering_key)
+        ordered_combo = sorted(combo, key=spec_ordering_key)
 
         test_spec = Spec(' '.join(ordered_combo))
         # Abstract variants don't have normal satisfaction semantics

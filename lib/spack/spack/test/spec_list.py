@@ -180,3 +180,26 @@ class TestSpecList(object):
                    'exclude': ['foo=bar']}]
         speclist = SpecList('specs', matrix)
         assert len(speclist.specs) == 1
+
+    def test_spec_list_1dim_expansion(self, mock_packages):
+        # Test expansion of ref in the first dimension
+        matrix = [
+            ['mpileaks', 'multivalue-variant'],
+            ['%clang', '%intel'],
+            '$^ref',
+        ]
+        ref_matrix = [
+            ['libelf', 'libdwarf'],
+            ['%gcc'],
+        ]
+        reference = {'ref': SpecList('ref', [{'matrix': ref_matrix}])}
+        speclist = SpecList('specs', [{'matrix': matrix}], reference)
+
+        sameforall = ' ^libelf%gcc ^libdwarf%gcc'
+        expected_specs = [
+            Spec('mpileaks           %clang' + sameforall),
+            Spec('mpileaks           %intel' + sameforall),
+            Spec('multivalue-variant %clang' + sameforall),
+            Spec('multivalue-variant %intel' + sameforall),
+        ]
+        assert speclist.specs == expected_specs

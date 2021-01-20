@@ -27,10 +27,15 @@ spec_list_schema = {
                  'matrix': {
                      'type': 'array',
                      'items': {
-                         'type': 'array',
-                         'items': {
-                             'type': 'string',
-                         }
+                         'anyOf': [
+                             {
+                                 'type': 'array',
+                                 'items': {
+                                     'type': 'string',
+                                 },
+                             },
+                             {'type': 'string'}
+                         ]
                      }
                  },
                  'exclude': {
