@@ -360,6 +360,8 @@ def make_argument_parser(**kwargs):
         help="when to colorize output (default: auto)")
     parser.add_argument(
         '-C', '--config-scope', dest='config_scopes', action='append',
+        default=os.environ['SPACK_CONFIG_SCOPES'].split(":") \
+        if 'SPACK_CONFIG_SCOPES' in os.environ else [],
         metavar='DIR', help="add a custom configuration scope")
     parser.add_argument(
         '-d', '--debug', action='count', default=0,
