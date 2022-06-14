@@ -109,8 +109,8 @@ def num_processes(max_processes=None):
     Args:
         max_processes (int or None): maximum number of processes allowed
     """
-    max_processes or cpus_available()
-    return min(cpus_available(), max_processes)
+    cpus = cpus_available()
+    return min(cpus, max_processes) if max_processes else cpus
 
 
 def parallel_map(func, arguments, max_processes=None, debug=False):
