@@ -47,6 +47,14 @@ def module(*args, **kwargs):
                 continue
             environ[parts[0]] = parts[1]
 
+        # Revert bash and awk internal variables
+        revert = [b"_", b"AWKLIBPATH", b"AWKPATH"]
+        for name in revert:
+            if name in os.environb:
+                environ[name] = os.environb[name]
+            elif name in environ:
+                del environ[name]
+
         # Update os.environ with new dict
         os.environ.clear()
         os.environb.update(environ)  # novermin

@@ -38,6 +38,7 @@ def test_module_function_change_env(tmpdir, working_env):
 
     assert os.environ["TEST_MODULE_ENV_VAR"] == "TEST_SUCCESS"
     assert os.environ["NOT_AFFECTED"] == "NOT_AFFECTED"
+    assert os.environ.get("AWKLIBPATH", None) == orig.get("AWKLIBPATH", None)
 
 
 def test_module_function_no_change(tmpdir):
