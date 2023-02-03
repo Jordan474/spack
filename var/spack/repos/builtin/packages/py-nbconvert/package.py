@@ -3,8 +3,72 @@
 #
 # SPDX-License-Identifier: (Apache-2.0 OR MIT)
 
+import os.path
 
 from spack.package import *
+
+
+def get_py_nbconvert_resources_7_0_0():
+    """Resources to download for py-nbconvert."""
+
+    # The following code was **copy-pasted** from
+    # - https://github.com/jupyter/nbconvert/blob/7.0.0/hatch_build.py
+    # - https://github.com/jupyter/nbconvert/blob/v7.2.9/hatch_build.py (unchanged)
+    # Also see:
+    # - https://github.com/macports/macports-ports/blob/master/python/py-nbconvert/Portfile
+    notebook_css_version = "5.4.0"
+    notebook_css_url = (
+        "https://cdn.jupyter.org/notebook/%s/style/style.min.css" % notebook_css_version
+    )
+
+    jupyterlab_css_version = "3.1.11"
+    jupyterlab_css_url = (
+        "https://unpkg.com/@jupyterlab/nbconvert-css@%s/style/index.css" % jupyterlab_css_version
+    )
+
+    jupyterlab_theme_light_version = "3.1.11"
+    jupyterlab_theme_light_url = (
+        "https://unpkg.com/@jupyterlab/theme-light-extension@%s/style/variables.css"
+        % jupyterlab_theme_light_version
+    )
+
+    jupyterlab_theme_dark_version = "3.1.11"
+    jupyterlab_theme_dark_url = (
+        "https://unpkg.com/@jupyterlab/theme-dark-extension@%s/style/variables.css"
+        % jupyterlab_theme_dark_version
+    )
+
+    template_css_urls = {
+        "lab": [
+            (jupyterlab_css_url, "index.css"),
+            (jupyterlab_theme_light_url, "theme-light.css"),
+            (jupyterlab_theme_dark_url, "theme-dark.css"),
+        ],
+        "classic": [(notebook_css_url, "style.css")],
+    }
+    # (end of copy-paste)
+
+    checksums = {
+        "index.css": "0a3fc632f155c2c3f3c4a40b5adc19b94369b4ba8a780df50c33d61449d12717",
+        "theme-light.css": "f1f9c2f5232945d501c16737edece840b125eb9c256cf5a45892e4c051be06d7",
+        "theme-dark.css": "2b194f360a7851ff4da5a6d3af8afa20c683c0e41e02a27b56ea00a912801051",
+        "style.css": "5865a609f4437b0464bc121cd567b619074e540a0515a3b82f222f764eb51e01",
+    }
+    resources_args = []
+    for dirname, urls in template_css_urls.items():
+        for url, basename in urls:
+            resources_args.append(
+                dict(
+                    name="py-nbconvert-7.0.0-resource-{}-{}".format(dirname, basename),
+                    url=url,
+                    sha256=checksums[basename],
+                    destination="share/templates/" + dirname,
+                    placement={os.path.basename(url): basename},
+                    expand=False,
+                    when="@7.0.0:",
+                )
+            )
+    return resources_args
 
 
 class PyNbconvert(PythonPackage):
@@ -71,6 +135,9 @@ class PyNbconvert(PythonPackage):
     depends_on("py-tornado@6.1:", when="@6.5: +serve", type=("build", "run"))
     depends_on("py-tornado@4.0:", when="@5.4.1: +serve", type=("build", "run"))
     depends_on("py-tornado@4.0:5", when="@:5.4.0 +serve", type=("build", "run"))
+
+    for __resargs in get_py_nbconvert_resources_7_0_0():
+        resource(**__resargs)
 
     def patch(self):
         # We bundle this with the spack package so that the installer
