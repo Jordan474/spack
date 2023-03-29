@@ -4100,7 +4100,7 @@ class Spec(object):
 
         """
         # If we have an unescaped $ sigil, use the deprecated format strings
-        if re.search(r"[^\\]*\$", format_string):
+        if re.search(r"(?<!\\)\$", format_string):
             return self.old_format(format_string, **kwargs)
 
         color = kwargs.get("color", False)

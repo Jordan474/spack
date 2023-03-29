@@ -762,6 +762,22 @@ class TestSpecSemantics(object):
             actual = spec.format(named_str)
             assert str(expected) == actual
 
+    def test_spec_deprecated_formatting_escapes(self):
+        spec = Spec("libelf cflags==-O2")
+        spec.concretize()
+        tests = [
+            # New + old == old format
+            (r"$_{name}", "libelf{name}"),
+            (r"{name}${PACKAGE}", "{name}libelf"),
+            # New + escaped old == new format
+            (r"\$_{name}", "$_libelf"),
+            (r"{name}\$\{PACKAGE\}", "libelf${PACKAGE}"),
+        ]
+        for named_str, expected in tests:
+            assert expected == spec.format(named_str)
+            # Test with a string not starting with '$'
+            assert "--" + expected + "--" == spec.format("--" + named_str + "--")
+
     @pytest.mark.regression("9908")
     def test_spec_flags_maintain_order(self):
         # Spack was assembling flags in a manner that could result in
