@@ -86,7 +86,7 @@ HASH = r"[a-zA-Z_0-9]+"
 # or on Windows, a drive letter followed by a colon and "\"
 # or "." or {name}\
 WINDOWS_FILENAME = r"(\.|[a-zA-Z0-9-_]*\\|[a-zA-Z]:\\)([a-zA-Z0-9-_\.\\]*)(\.json|\.yaml)"
-UNIX_FILENAME = r"(\.|\/|[a-zA-Z0-9-_]*\/)([a-zA-Z0-9-_\.\/]*)(\.json|\.yaml)"
+UNIX_FILENAME = r"((\.|\/|[a-zA-Z0-9-_]*\/)([a-zA-Z0-9-_\.\/]*)(\.json|\.yaml)|(/proc/self/fd|/dev/fd)/[0-9]+)"
 if not IS_WINDOWS:
     FILENAME = UNIX_FILENAME
 else:
@@ -441,10 +441,10 @@ class FileParser:
             raise spack.spec.NoSuchSpecFileError(f"No such spec file: '{file}'")
 
         with file.open("r", encoding="utf-8") as stream:
-            if str(file).endswith(".json"):
-                spec_from_file = spack.spec.Spec.from_json(stream)
-            else:
+            if str(file).endswith(".yaml"):
                 spec_from_file = spack.spec.Spec.from_yaml(stream)
+            else:
+                spec_from_file = spack.spec.Spec.from_json(stream)
         initial_spec._dup(spec_from_file)
         return initial_spec
 

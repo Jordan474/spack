@@ -2262,9 +2262,9 @@ class Spec(object):
         """Construct a spec from a JSON or YAML spec file path"""
         with open(path, "r") as fd:
             file_content = fd.read()
-            if path.endswith(".json"):
-                return Spec.from_json(file_content)
-            return Spec.from_yaml(file_content)
+            if path.endswith(".yaml"):
+                return Spec.from_yaml(file_content)
+            return Spec.from_json(file_content)
 
     @staticmethod
     def override(init_spec, change_spec):
