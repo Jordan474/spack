@@ -124,6 +124,22 @@ class Binutils(AutotoolsPackage, GNUMirrorPackage):
         when="@2.26:",
     )
 
+    variant(
+        "targets",
+        default="auto",
+        values=("auto", "all", "x86_64", "aarch64", "ppc64le"),
+        multi=True,
+        description="Additional targets to support",
+    )
+
+    variant(
+        "platforms",
+        default="auto",
+        values=("auto", "all", "linux", "darwin"),
+        multi=True,
+        description="Additional platforms to support",
+    )
+
     patch("cr16.patch", when="@:2.29.1")
     patch("update_symbol-2.26.patch", when="@2.26")
 
@@ -261,10 +277,25 @@ class AutotoolsBuilder(spack.build_systems.autotools.AutotoolsBuilder):
         family = str(self.spec.target.family)
         platform = self.spec.platform
 
-        if family in known_targets and platform in known_platforms:
-            targets = "{}-{}".format(known_targets[family], known_platforms[platform])
+        add_targets = list(self.spec.variants["targets"].value)
+        add_platforms = list(self.spec.variants["platforms"].value)
+        if "all" in add_targets or "all" in add_platforms:
+            targets = ["all"]
+        elif family in known_targets and platform in known_platforms:
+            targets = []
+            if family not in add_targets:
+                add_targets.append(family)
+            if platform not in add_platforms:
+                add_platforms.append(platform)
+            for add_target in add_targets:
+                if add_target == "auto":
+                    continue
+                for add_platform in add_platforms:
+                    if add_platform == "auto":
+                        continue
+                    targets.append("{}-{}".format(known_targets[add_target], known_platforms[add_platform]))
         else:
-            targets = "all"
+            targets = ["all"]
 
         args = [
             "--disable-dependency-tracking",
@@ -272,7 +303,7 @@ class AutotoolsBuilder(spack.build_systems.autotools.AutotoolsBuilder):
             "--enable-64-bit-bfd",
             "--enable-multilib",
             "--enable-pic",
-            "--enable-targets={}".format(targets),
+            "--enable-targets={}".format(",".join(targets)),
             "--with-sysroot=/",
             "--with-system-zlib",
         ]
