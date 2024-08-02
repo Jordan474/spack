@@ -2,12 +2,14 @@
 # Spack Project Developers. See the top-level COPYRIGHT file for details.
 #
 # SPDX-License-Identifier: (Apache-2.0 OR MIT)
+import base64
 import collections
 import collections.abc
 import copy
 import enum
 import functools
 import itertools
+import json
 import os
 import pathlib
 import pprint
@@ -17,6 +19,7 @@ import types
 import typing
 import warnings
 from contextlib import contextmanager
+from hashlib import sha256
 from typing import Callable, Dict, Iterator, List, NamedTuple, Optional, Set, Tuple, Type, Union
 
 import archspec.cpu
@@ -91,13 +94,84 @@ DEFAULT_OUTPUT_CONFIGURATION = OutputConfiguration(
 )
 
 
+class CachedClingoControl:
+    def __init__(self, control):
+        self._control = control
+        self._key_hasher = sha256()
+        self._debug = []
+
+        self._update_key_hash(
+            init={
+                "configuration": {
+                    "configuration": control.configuration.configuration,
+                    "solver": {
+                        "heuristic": control.configuration.solver.heuristic,
+                        "opt_strategy": control.configuration.solver.opt_strategy,
+                    },
+                }
+            }
+        )
+
+    def _update_key_hash(self, **kwargs):
+        data = json.dumps(kwargs).encode()
+        self._debug.append(data)
+        self._debug.append(b"\n")
+        self._key_hasher.update(data)
+        self._key_hasher.update(b"\n")
+
+    def add(self, *args, **kwargs):
+        self._update_key_hash(func="add", args=args, kwargs=kwargs)
+        self._control.add(*args, **kwargs)
+
+    def ground(self, *args, **kwargs):
+        self._update_key_hash(func="ground", args=args, kwargs=kwargs)
+        self._control.ground(*args, **kwargs)
+
+    def load(self, path):
+        # FIXME datarace
+        with open(path, "r") as f:
+            self._update_key_hash(func="load", content=f.read())
+        self._control.load(path)
+
+    def solve(self, **kwargs):
+        inputs = {}
+        original_kwargs = kwargs.copy()
+
+        assumptions = kwargs.pop("assumptions", None)
+        if assumptions is not None:
+            inputs["assumptions"] = [(str(k), v) for k, v in assumptions]
+        on_model = kwargs.pop("on_model", None)
+        on_core = kwargs.pop("on_core", None)
+        assert not kwargs, f"unsupported kwargs: {kwargs}"
+        self._update_key_hash(func="solve", inputs=inputs)
+
+        # digest = self._key_hasher.digest()
+        # h = base64.b32encode(digest).lower().decode("ascii")
+        # h = digest).lower().decode("ascii")
+        tty.info(self._key_hasher.hexdigest())
+
+        with open("conckey.json", "wb") as f:
+            for d in self._debug:
+                f.write(d)
+
+        res = self._control.solve(**original_kwargs)
+
+        return res
+
+    @property
+    def statistics(self):
+        # TODO
+        return {}
+
+
 def default_clingo_control():
     """Return a control object with the default settings used in Spack"""
     control = clingo().Control()
     control.configuration.configuration = "tweety"
     control.configuration.solver.heuristic = "Domain"
     control.configuration.solver.opt_strategy = "usc,one"
-    return control
+    # return control
+    return CachedClingoControl(control)
 
 
 class Provenance(enum.IntEnum):
