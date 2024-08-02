@@ -38,6 +38,7 @@ from typing import TYPE_CHECKING, Any, Callable, List, Optional, Tuple, Union
 
 import llnl.util.lang
 import llnl.util.tty.color
+from llnl.util.orderedset import OrderedSet
 
 import spack.deptypes as dt
 import spack.error
@@ -495,13 +496,15 @@ def provides(*specs: SpecType, when: WhenType = None):
         spec_objs = [spack.spec.Spec(x) for x in specs]
         spec_names = [x.name for x in spec_objs]
         if len(spec_names) > 1:
-            pkg.provided_together.setdefault(when_spec, []).append(set(spec_names))
+            pkg.provided_together.setdefault(when_spec, []).append(
+                llnl.util.lang.dedupe(spec_names)
+            )
 
         for provided_spec in spec_objs:
             if pkg.name == provided_spec.name:
                 raise CircularReferenceError("Package '%s' cannot provide itself." % pkg.name)
 
-            provided_set = pkg.provided.setdefault(when_spec, set())
+            provided_set = pkg.provided.setdefault(when_spec, OrderedSet())
             provided_set.add(provided_spec)
 
     return _execute_provides
@@ -774,7 +777,7 @@ def maintainers(*names: str):
     """
 
     def _execute_maintainer(pkg):
-        maintainers = set(getattr(pkg, "maintainers", []))
+        maintainers = OrderedSet(getattr(pkg, "maintainers", []))
         maintainers.update(names)
         pkg.maintainers = sorted(maintainers)
 
@@ -875,7 +878,7 @@ def _language(lang_spec_str: str, *, when: Optional[Union[str, bool]] = None):
         if not when_spec:
             return
 
-        languages = pkg.languages.setdefault(when_spec, set())
+        languages = pkg.languages.setdefault(when_spec, OrderedSet())
         languages.add(lang_spec_str)
 
     return _execute_languages

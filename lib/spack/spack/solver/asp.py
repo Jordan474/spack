@@ -24,6 +24,7 @@ import archspec.cpu
 import llnl.util.lang
 import llnl.util.tty as tty
 from llnl.util.lang import elide_list
+from llnl.util.orderedset import OrderedSet
 
 import spack
 import spack.binary_distribution
@@ -1269,7 +1270,7 @@ class SpackSolverSetup:
             return
 
         self.gen.h2("Imposed requirements")
-        for name in self._effect_cache:
+        for name in sorted(self._effect_cache):
             cache = self._effect_cache[name]
             for (spec_str, _), (effect_id, requirements) in cache.items():
                 self.gen.fact(fn.pkg_fact(name, fn.effect_id(effect_id)))
@@ -1494,7 +1495,9 @@ class SpackSolverSetup:
 
     def package_dependencies_rules(self, pkg):
         """Translate 'depends_on' directives into ASP logic."""
-        for cond, deps_by_name in sorted(pkg.dependencies.items()):
+        for cond, deps_by_name in sorted(
+            pkg.dependencies.items(), key=lambda kv: str(kv[0])
+        ):  # BAD HACK (keys are Spec, cannot sort ?)
             for _, dep in sorted(deps_by_name.items()):
                 depflag = dep.depflag
                 # Skip test dependencies if they're not requested
@@ -2369,7 +2372,7 @@ class SpackSolverSetup:
         # Tell the concretizer about possible values from specs we saw in
         # spec_clauses(). We might want to order these facts by pkg and name
         # if we are debugging.
-        for pkg, variant, value in self.variant_values_from_specs:
+        for pkg, variant, value in sorted(self.variant_values_from_specs):
             self.gen.fact(fn.pkg_fact(pkg, fn.variant_possible_value(variant, value)))
 
     def register_concrete_spec(self, spec, possible):
@@ -3120,7 +3123,7 @@ class RuntimePropertyRecorder:
     def __init__(self, setup):
         self._setup = setup
         self.rules = []
-        self.runtime_conditions = set()
+        self.runtime_conditions = OrderedSet()
         # State of this object set in the __call__ method, and reset after
         # each directive-like method
         self.current_package = None
@@ -3292,7 +3295,7 @@ class RuntimePropertyRecorder:
             self._setup.gen.append(rule)
 
         self._setup.gen.h2("Runtimes: conditions")
-        for runtime_pkg in spack.repo.PATH.packages_with_tags("runtime"):
+        for runtime_pkg in sorted(spack.repo.PATH.packages_with_tags("runtime")):
             self._setup.gen.fact(fn.runtime(runtime_pkg))
             self._setup.gen.fact(fn.possible_in_link_run(runtime_pkg))
             self._setup.gen.newline()

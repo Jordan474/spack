@@ -5,6 +5,8 @@
 import stat
 import warnings
 
+from llnl.util.orderedset import OrderedSet
+
 import spack.config
 import spack.error
 import spack.repo

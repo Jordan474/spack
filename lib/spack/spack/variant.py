@@ -15,6 +15,7 @@ import re
 import llnl.util.lang as lang
 import llnl.util.tty.color
 from llnl.string import comma_or
+from llnl.util.orderedset import OrderedSet
 
 import spack.error as error
 import spack.parser
@@ -561,14 +562,14 @@ class DisjointSetsOfValues(collections.abc.Sequence):
         *sets (list): mutually exclusive sets of values
     """
 
-    _empty_set = set(("none",))
+    _empty_set = OrderedSet(("none",))
 
     def __init__(self, *sets):
-        self.sets = [set(_flatten(x)) for x in sets]
+        self.sets = [OrderedSet(_flatten(x)) for x in sets]
 
         # 'none' is a special value and can appear only in a set of
         # a single element
-        if any("none" in s and s != set(("none",)) for s in self.sets):
+        if any("none" in s and s != OrderedSet(("none",)) for s in self.sets):
             raise error.SpecError(
                 "The value 'none' represents the empty set,"
                 " and must appear alone in a set. Use the "
