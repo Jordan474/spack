@@ -61,11 +61,25 @@ def setup_parser(subparser):
     )
 
     subparser.add_argument(
+        "--fresh",
+        action="store_true",
+        default=False,
+        dest="load_fresh",
+        help="Try load a fresh concretization if installed",
+    )
+    subparser.add_argument(
+        "--reuse",
+        action="store_true",
+        default=False,
+        dest="load_reuse",
+        help="Try load a resuing concretization if installed",
+    )
+    subparser.add_argument(
         "--first",
         action="store_true",
         default=False,
         dest="load_first",
-        help="load the first match if multiple packages match the spec",
+        help="Try load the first installed spec",
     )
 
     subparser.add_argument(
@@ -86,10 +100,30 @@ def load(parser, args):
         spack.cmd.display_specs(results)
         return
 
-    constraint_specs = spack.cmd.parse_specs(args.constraint)
-    specs = [
-        spack.cmd.disambiguate_spec(spec, env, first=args.load_first) for spec in constraint_specs
-    ]
+    input_specs = spack.cmd.parse_specs(args.constraint)
+    specs = []
+
+    for input_spec in input_specs:
+        spec = None
+
+        if spec is None and args.load_fresh:
+            with spack.config.override("concretizer:reuse:", False):
+                spec = input_spec.copy()
+                spec.concretize()
+                if not spec.installed:
+                    spec = None
+
+        if spec is None and args.load_reuse:
+            with spack.config.override("concretizer:reuse:", True):
+                spec = input_spec.copy()
+                spec.concretize()
+                if spec.installed:
+                    spec = None
+
+        if spec is None:
+            spec = spack.cmd.disambiguate_spec(input_spec, env, first=args.load_first)
+
+        specs.append(spec)
 
     if not args.shell:
         specs_str = " ".join(str(s) for s in constraint_specs) or "SPECS"
