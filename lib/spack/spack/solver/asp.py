@@ -363,17 +363,17 @@ def all_libcs() -> Set[spack.spec.Spec]:
     """Return a set of all libc specs targeted by any configured compiler. If none, fall back to
     libc determined from the current Python process if dynamically linked."""
 
-    libcs = {
+    libcs = OrderedSet(
         c.default_libc
         for c in spack.compilers.all_compilers_from(spack.config.CONFIG)
         if c.default_libc
-    }
+    )
 
     if libcs:
         return libcs
 
     libc = spack.util.libc.libc_from_current_python_process()
-    return {libc} if libc else set()
+    return OrderedSet([libc]) if libc else OrderedSet()
 
 
 def libc_is_compatible(lhs: spack.spec.Spec, rhs: spack.spec.Spec) -> List[spack.spec.Spec]:
@@ -3078,7 +3078,7 @@ class CompilerParser:
     """Parses configuration files, and builds a list of possible compilers for the solve."""
 
     def __init__(self, configuration) -> None:
-        self.compilers: Set[KnownCompiler] = set()
+        self.compilers: Set[KnownCompiler] = OrderedSet()
         for c in spack.compilers.all_compilers_from(configuration):
             if using_libc_compatibility() and not c_compiler_runs(c):
                 tty.debug(
